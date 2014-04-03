@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Local Development Setup Instructions</title>
+</head>
+
+<body>
+<h1>Local Development Setup Instructions</h1>
+
+<hr />
+
+This is a work in progress. Please read carefully.
+<h2>Let's get straight to it:</h2>
+<h3>1. Install Virtual Box:</h3>
+<a href="https://www.virtualbox.org/wiki/Downloads" target="_blank">https://www.virtualbox.org/wiki/Downloads</a>
+<h3>2. Install Vagrant:</h3>
+<a href="http://www.vagrantup.com/downloads.html" target="_blank">http://www.vagrantup.com/downloads.html</a>
+<h3>3. Create some directories</h3>
+Make two a new directories on your machine, wherever you like. Read below for more info on what they are for. I have mine in /Users/raykamille/
+<pre>local_development/</pre>
+<pre>local_development/virtual-web-sites/</pre>
+<strong>local_development/</strong> is where you will clone the git repo for the virtual web server.
+
+<strong>local_development/virtual-web-sites/</strong> is where you will clone git repo's for the various sites
+
+So put them some place accordingly.
+<h3>4. Clone this git repo</h3>
+into local_development/
+
+#put the git repo here
+<h3>5. Let's launch the new enviornment</h3>
+Command line for now as this is version .01
+<pre>cd /path/to/local_development/vagrant/</pre>
+<pre>vagrant up</pre>
+<h3>6. While it's doing it's thing, add this to your 'hosts' file.</h3>
+<pre># Local Development Hosts
+192.168.77.10 localhost.default
+</pre>
+<h3>7. Wait for it to finish, the first run can take a little bit</h3>
+<h3>8. Once it's done... you should be able to click this link and see a default wordpress install</h3>
+<a href="http://localhost.default/" target="_blank">http://localhost.default/</a>
+
+admin user - localdev/abc123
+
+&nbsp;
+<h3><strong>Some notes for reference:</strong></h3>
+Vagrant is a wrapper for Virtual Box
+<br/><br/>
+Virtual Box is virtual machine software -vagrant is using it to a virtual machine on your computer
+<br/><br/>
+The virutal machine is running linux - debian squeeze to be more specific
+<br/><br/>
+The virtual machine is running a web server at 192.168.77.10
+<br/><br/>
+The virtual machine has a shared folder with your machine
+localdevelopment/virtual-web-sites/
+<br/><br/>
+localhost.default is served from here:
+<br/><br/>
+localdevelopment/virtual-web-sites/default/webroot
+<br/><br/>
+</body>
+
+</html>

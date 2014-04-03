@@ -1,0 +1,245 @@
+---
+# ^^^ YAML documents must begin with the document separator "---"
+#
+#### Example docblock 
+#
+# Overview:
+#  Playbook to configure vagrant box for local development 
+# Applies to: 
+#  local development
+# Description: 
+#   Configure the local develment host to be as close to the production
+#  development enviornmnet as possible.
+# 
+###########
+-
+  hosts: all
+  sudo: True
+  user: root
+
+#### Vars
+#
+#
+###########
+  vars:
+    color: blue
+
+    root_db_password: acb123
+
+    #Not sure if this spacing will work in yaml
+    web:
+      sample:     value
+      sample2:    value
+      config:    sample-value.conf
+      config_path: /etc/$config
+
+#### Ansible Tasks
+# I just seemed right to have a header for this
+# 
+# 
+###########
+  tasks:
+
+
+#### Some basics to setup
+# Put the vagrant user in the adm group 
+# 
+# 
+###########
+
+    - name: Put the vagrant userin the adm group
+      user: name=vagrant state=present group=adm
+
+#### Install packages what we need for the dev enviornment
+# nginx for our web server
+# php and php-fpm
+# mysql
+###########
+
+# I need this to be able to add repo's
+    - name: Install python-apt
+      apt: pkg=python-apt,python-pycurl
+
+# Add an Apt signing key, will not download if present
+    - name: adding repository key
+      apt_key: id=89DF5277 url=http://www.dotdeb.org/dotdeb.gpg state=present
+
+# Add specified repository into sources list.
+    - name: adding repository dotdeb.org for nginx, php and the like
+      apt_repository: repo='deb http://packages.dotdeb.org squeeze all' state=present
+
+    - name: Update update_cache
+      apt: update_cache=yes cache_valid_time=3600
+
+# Install all the goodies needed for the web server
+    - name: Install common support apps
+      apt: pkg=vim,htop,zip,unzip state=present
+
+    - name: Install nginx web server
+      apt: pkg=nginx state=present force=yes
+
+    - name: Install database engines
+      apt: pkg=mysql-server,python-mysqldb,redis-server,redis-tools state=present
+
+    - name: Install php
+      apt: pkg=php5-fpm,php5-mysql,php-apc,php5-curl,php5-tidy,php5-gd state=present
+
+    - name: Install php debugging exetensions
+      apt: pkg=php5-xdebug state=present
+
+#### Ensure web enviornment is set to start on boot
+# I put mysql first hoping it would solve some issues
+# 
+# 
+###########
+  
+    - name: ensure mysql is running and starts on boot
+      service: name=mysql state=restarted enabled=true
+
+    - name: Ensure nginx starts on boot
+      service: name=nginx state=restarted enabled=yes
+      
+    - name: ensure php5-fpm is running and starts on boot
+      service: name=php5-fpm state=restarted enabled=true
+
+
+#### Configurations for our new applications
+# nginx virtual host setup
+# 
+# 
+###########
+# I think what I am going to do here is have them pull the git repo for the 
+# website first.  The repo will have a configuration file loaded here to config
+# the virtual host.
+
+# I need to read in the sites they have 'gited' and create the appropriate virutal hosts for those as well.
+# There is an alternative and just create one and have everything as /directories...
+# But there are some licencing issues with amember and some of the commercial wordpress
+# plugins that we are using. So I think it would be better to do something like have
+# localhost.domain.com
+
+# So, that being said, I need to put something in here to iterate over the users 'project' # directory.  At the moment thats '/Users/rkamille/local_development/virtual-web-sites'
+# Will need to figure out how to make that modular.
+
+
+# For now I will do it kinda manually for a default vhost and wordpress install
+
+    - name: write main nginx configuration /etc/nginx/nginx.conf
+      action: template force=yes src=/vagrant/templates/nginx/nginx.conf dest=/etc/nginx/nginx.conf
+      notify: restart nginx 
+
+    - name: write nginx default virutal host configuration
+      action: template force=yes src=/vagrant/templates/nginx/hosts/default.conf dest=/etc/nginx/sites-available/default.conf
+      notify: restart nginx 
+
+    - name: Remove nginx default in favor of our own
+      file: state=absent path=/etc/nginx/sites-enabled/default
+      notify: restart nginx 
+
+
+    - name: Our own default config
+      file: state=link src=/etc/nginx/sites-available/default.conf dest=/etc/nginx/sites-enabled/default.conf
+      notify: restart nginx 
+
+
+    - name: Create nginx default log directory
+      file: dest=/var/log/nginx/default state=directory owner=www-data group=adm
+      notify: restart nginx 
+
+
+# some samples to create fils etc.  
+
+#- name: Create custom index.html
+#      copy: content="{{ inventory_hostname }}" dest=/usr/share/nginx/www/index.html
+#            owner=root group=root mode=0644
+
+#technically I need to create these too... but for local dev I might just leave them in the same folders.
+
+# 2014_0403_0846AM_Thursday Commenting this out to see if I can just copy the dir over
+    - name: Create directory for default site
+      file: dest=/var/www/default state=directory owner=www-data group=adm
+      notify: restart nginx 
+
+# don't need to create web roots for the other websites, they will be created in the
+# shared folder with the other git repos
+
+
+
+
+# need to modify php ini settings for timezone
+
+#### Configurations for our new applications
+# mysql users and database loads et all
+# 
+#
+###########
+#set start on boot
+#change root username and password
+#build databases for the available projects
+#will need a wordpress database stock if I am going to use wp migrate pro - perhaps I can get some code from wp-stack for the database synchs (I don't think they are making path changes or anything, I think wp migrate pro is best for now)
+
+
+      
+    # 'localhost' needs to be the last item for idempotency, see
+    # http://ansible.cc/docs/modules.html#mysql-user
+    - name: update mysql root password for all root accounts
+      mysql_user: name=root host={{ item }} password=abc123
+      with_items:
+        - "{{ ansible_hostname }}"
+        - 127.0.0.1
+        - ::1
+        - localhost
+
+    - name: copy .my.cnf file with root password credentials
+      template: src=/vagrant/templates/root/.my.cnf dest=/root/.my.cnf owner=root mode=0600
+
+    - name: ensure anonymous users are not in the database
+      mysql_user: name=Anonymous state=absent
+#      with_items:
+#        - localhost
+#        - "{{ inventory_hostname }}"
+
+    - name: remove the test database
+      mysql_db: name=test state=absent
+      
+#### Let's setup the wordpress install
+# Setting up the default wordpress install 
+# This is just so there is something to start with
+# Actual sites will be cloned git repos
+###########
+
+#create the database
+    - name: Create the wordpress database for default
+      mysql_db: name=default_wproot state=present
+
+#Import the database
+    - name: import database
+      mysql_db: name=default_wproot state=import target=/vagrant/templates/mysql/default_wproot.sql.gz
+
+#copy the wp-config file
+    - name: Copy the default wordpress html
+      unarchive: src=/vagrant/templates/webroot/default_webroot.tgz dest=/var/www/default/
+
+
+#### handlers: Let's start everything up - just about ready to go
+# 
+# 
+# 
+###########
+  handlers: 
+    - name: restart nginx
+      action: service name=nginx state=restarted
+
+    - name: restart mysql
+      action: service name=mysqld state=restarted
+      
+    - name: restart php5-fpm
+      action: service name=php5-fpm state=restarted
+
+
+
+
+######  Some notes
+
+# This looks like a good reference :
+# http://fourkitchens.com/blog/2012/06/29/ansible-simple-configuration-deployment
